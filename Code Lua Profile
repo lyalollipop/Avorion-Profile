@@ -1,0 +1,123 @@
+-- player_profile_button.lua
+
+-- Define as dimensões e a posição do botão
+local BUTTON_WIDTH = 150
+local BUTTON_HEIGHT = 40
+local BUTTON_MARGIN_RIGHT = 20
+local BUTTON_MARGIN_BOTTOM = 20
+
+-- Define as dimensões da janela de perfil
+local PROFILE_WINDOW_WIDTH = 300
+local PROFILE_WINDOW_HEIGHT = 200
+
+-- Variável para armazenar a janela de perfil
+local profileWindow = nil
+
+-- Função para criar e exibir a janela de perfil
+function showProfileWindow()
+    -- Se a janela já existe, remove-a para recriar com dados atualizados
+    if profileWindow then
+        profileWindow:destroy()
+        profileWindow = nil
+    end
+
+    local player = Player()
+    if not player then
+        return -- Não há jogador disponível
+    end
+
+    local faction = player.faction
+    if not faction then
+        return -- Jogador sem facção (deveria ser raro)
+    end
+
+    -- Obter informações do jogador e da facção
+    local playerName = player.name
+    local playerAlliance = player.alliance and player.alliance.name or "Nenhuma Aliança"
+
+    -- Contar estações e naves do jogador
+    local numStations = 0
+    local numShips = 0
+    local ownedEntities = faction:getControllingEntities() -- Entidades controladas pela facção
+    for _, entity in pairs(ownedEntities) do
+        if entity:isStation() then
+            numStations = numStations + 1
+        elseif entity:isShip() then
+            numShips = numShips + 1
+        end
+    end
+
+    -- Contar setores controlados pela facção (isso pode ser caro, considere otimização para muitos setores)
+    local numControlledSectors = 0
+    local world = World()
+    for _, sector in pairs(world:getSectors()) do
+        if sector.controllingFaction and sector.controllingFaction.index == faction.index then
+            numControlledSectors = numControlledSectors + 1
+        end
+    end
+
+    -- Criar a janela de perfil
+    profileWindow = GUIManager:createWindow(Rect(
+        (GUIManager:get and GUIManager:get().resolution.x or 1920) / 2 - PROFILE_WINDOW_WIDTH / 2, -- Centraliza horizontalmente
+        (GUIManager:get and GUIManager:get().resolution.y or 1080) / 2 - PROFILE_WINDOW_HEIGHT / 2, -- Centraliza verticalmente
+        PROFILE_WINDOW_WIDTH,
+        PROFILE_WINDOW_HEIGHT
+    ))
+    profileWindow.title = "Perfil do Jogador"
+    profileWindow.dragable = true
+
+    -- Adicionar texto com as informações
+    local yOffset = 10
+    local addText = function(text)
+        local label = profileWindow:createLabel(Rect(10, yOffset, PROFILE_WINDOW_WIDTH - 20, 20))
+        label.text = text
+        yOffset = yOffset + 25
+    end
+
+    addText("Nome: " .. playerName)
+    addText("Aliança: " .. playerAlliance)
+    addText("Estações: " .. numStations)
+    addText("Naves: " .. numShips)
+    addText("Setores: " .. numControlledSectors)
+
+    -- Adicionar um botão de fechar
+    local closeButton = profileWindow:createButton(Rect(PROFILE_WINDOW_WIDTH / 2 - 40, yOffset + 10, 80, 30), "Fechar")
+    closeButton.onClick = function()
+        if profileWindow then
+            profileWindow:destroy()
+            profileWindow = nil
+        end
+    end
+end
+
+-- Função para inicializar o botão do perfil
+function init()
+    -- Obter a resolução da tela para posicionar o botão corretamente
+    local resolution = GUIManager:get and GUIManager:get().resolution or {x = 1920, y = 1080} -- Fallback para 1080p
+
+    -- Criar o botão no canto inferior direito
+    local profileButton = GUIManager:createButton(Rect(
+        resolution.x - BUTTON_WIDTH - BUTTON_MARGIN_RIGHT,
+        resolution.y - BUTTON_HEIGHT - BUTTON_MARGIN_BOTTOM,
+        BUTTON_WIDTH,
+        BUTTON_HEIGHT
+    ), "Meu Perfil")
+
+    profileButton.toolTip = "Clique para ver o perfil do jogador"
+
+    -- Definir a função a ser chamada ao clicar no botão
+    profileButton.onClick = function()
+        showProfileWindow()
+    end
+end
+
+-- Registrar a função init para ser chamada quando o jogo estiver pronto
+onInit(init)
+
+-- Limpeza ao sair (opcional, mas boa prática)
+function onExit()
+    if profileWindow then
+        profileWindow:destroy()
+        profileWindow = nil
+    end
+end
